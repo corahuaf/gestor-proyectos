@@ -19,16 +19,8 @@
 	let editingColumnId: string | null = null;
 	let editingColumnName = '';
 	let updatingColumnId: string | null = null;
-	let priorityFilter: Task['priority'] | 'todas' = 'todas';
-	let onlyOverdue = false;
-
-	function visibleTasks(column: Column) {
-		return (column.tasks || []).filter((task) => {
-			const matchesPriority = priorityFilter === 'todas' || task.priority === priorityFilter;
-			const matchesDueDate =
-				!onlyOverdue || Boolean(task.due_date && new Date(task.due_date) < new Date());
-			return matchesPriority && matchesDueDate;
-		});
+	function validTasks(column: Column) {
+		return (column.tasks || []).filter((task) => task?.id && task.title);
 	}
 
 	// Actualiza el array temporalmente mientras se arrastra
@@ -267,25 +259,6 @@
 				Organiza tus tareas por estado y arrástralas entre columnas.
 			</p>
 		</div>
-		<div class="flex flex-wrap items-center gap-2">
-			<label class="sr-only" for="priority-filter">Filtrar por prioridad</label>
-			<select
-				id="priority-filter"
-				bind:value={priorityFilter}
-				class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 outline-none focus:border-emerald-500"
-			>
-				<option value="todas">Todas las prioridades</option>
-				<option value="baja">Baja</option>
-				<option value="media">Media</option>
-				<option value="alta">Alta</option>
-				<option value="critica">Crítica</option>
-			</select>
-			<label
-				class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600"
-			>
-				<input type="checkbox" bind:checked={onlyOverdue} class="accent-emerald-600" /> Solo vencidas
-			</label>
-		</div>
 		{#if showAddColumnForm}
 			<form
 				on:submit|preventDefault={addColumn}
@@ -412,11 +385,11 @@
 
 				<div
 					class="flex-1 min-h-36 overflow-y-auto space-y-2 p-1"
-					use:dndzone={{ items: visibleTasks(column), flipDurationMs, zoneTabIndex: -1 }}
+					use:dndzone={{ items: validTasks(column), flipDurationMs, zoneTabIndex: -1 }}
 					on:consider={(e) => handleDndConsider(e, column.id)}
 					on:finalize={(e) => handleDndFinalize(e, column.id)}
 				>
-					{#each visibleTasks(column) as task (task.id)}
+					{#each validTasks(column) as task (task.id)}
 						<div animate:flip={{ duration: flipDurationMs }}>
 							<TaskCard
 								{task}

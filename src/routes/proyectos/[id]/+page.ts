@@ -17,7 +17,8 @@ export const load: PageLoad = async ({ params }) => {
 
 	const { data: columns, error: columnsError } = await supabase
 		.from('columns')
-		.select(`
+		.select(
+			`
 			id,
 			project_id,
 			name,
@@ -34,7 +35,8 @@ export const load: PageLoad = async ({ params }) => {
 				reminder_sent,
 				position_index
 			)
-		`)
+		`
+		)
 		.eq('project_id', params.id)
 		.order('position_index', { ascending: true })
 		.order('position_index', { referencedTable: 'tasks', ascending: true });
@@ -43,8 +45,15 @@ export const load: PageLoad = async ({ params }) => {
 		throw error(500, 'Error al cargar el tablero');
 	}
 
+	const safeColumns = (columns || [])
+		.filter((column) => column?.id && column.project_id && column.name)
+		.map((column) => ({
+			...column,
+			tasks: (column.tasks || []).filter((task) => task?.id && task.project_id && task.title)
+		}));
+
 	return {
 		project,
-		columns: columns || []
+		columns: safeColumns
 	};
 };
