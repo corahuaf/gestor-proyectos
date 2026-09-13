@@ -45,6 +45,6 @@
 	</div>
 
 	<div class="min-h-0 min-w-0 flex-1 overflow-hidden">
-		<KanbanBoard columns={columnas} />
+		<KanbanBoard columns={columnas} projectId={proyecto.id} />
 	</div>
 </div>

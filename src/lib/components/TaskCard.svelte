@@ -3,6 +3,13 @@
 	import { createEventDispatcher } from 'svelte';
 	export let task: Task;
 	export let disabled = false;
+	let editingPriority = false;
+	let editingDueDate = false;
+	let editingDetails = false;
+	let addingSubtask = false;
+	let subtaskTitle = '';
+	let draftTitle = task.title;
+	let draftDescription = task.description || '';
 
 	const dispatch = createEventDispatcher();
 
@@ -16,11 +23,41 @@
 	function handlePriorityChange(event: Event) {
 		const priority = (event.currentTarget as HTMLSelectElement).value as Task['priority'];
 		dispatch('update', { taskId: task.id, changes: { priority } });
+		editingPriority = false;
 	}
 
 	function handleDueDateChange(event: Event) {
 		const dueDate = (event.currentTarget as HTMLInputElement).value || null;
 		dispatch('update', { taskId: task.id, changes: { due_date: dueDate } });
+		editingDueDate = false;
+	}
+
+	function handleKeydown(event: KeyboardEvent, close: () => void) {
+		if (event.key === 'Escape') close();
+	}
+
+	function saveDetails() {
+		const title = draftTitle.trim();
+		if (title.length < 2 || title.length > 255) return;
+		dispatch('update', {
+			taskId: task.id,
+			changes: { title, description: draftDescription.trim() || null }
+		});
+		editingDetails = false;
+	}
+
+	function cancelDetails() {
+		draftTitle = task.title;
+		draftDescription = task.description || '';
+		editingDetails = false;
+	}
+
+	function createSubtask() {
+		const title = subtaskTitle.trim();
+		if (title.length < 2 || title.length > 255) return;
+		dispatch('add-subtask', { parentTaskId: task.id, title });
+		subtaskTitle = '';
+		addingSubtask = false;
 	}
 </script>
 
@@ -29,7 +66,50 @@
 	class="bg-white p-3 rounded-md shadow-sm border border-slate-200 cursor-grab active:cursor-grabbing hover:border-emerald-400 transition-colors"
 >
 	<div class="flex items-start justify-between gap-2">
-		<h4 class="font-medium text-sm text-slate-800 mb-1">{task.title}</h4>
+		{#if editingDetails}
+			<div class="min-w-0 flex-1 space-y-2">
+				<input
+					bind:value={draftTitle}
+					maxlength="255"
+					aria-label="Título de la tarea"
+					class="w-full rounded-md border border-slate-200 px-2 py-1 text-sm font-medium outline-none focus:border-emerald-500"
+				/>
+				<textarea
+					bind:value={draftDescription}
+					maxlength="2000"
+					rows="3"
+					aria-label="Descripción de la tarea"
+					placeholder="Añade una descripción..."
+					class="w-full rounded-md border border-slate-200 px-2 py-1 text-xs outline-none focus:border-emerald-500"
+				></textarea>
+				<div class="flex gap-2">
+					<button
+						type="button"
+						on:click={saveDetails}
+						disabled={draftTitle.trim().length < 2}
+						class="rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
+						>Guardar</button
+					>
+					<button
+						type="button"
+						on:click={cancelDetails}
+						class="rounded-md px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">Cancelar</button
+					>
+				</div>
+			</div>
+		{:else}
+			<button
+				type="button"
+				on:click|stopPropagation={() => (editingDetails = true)}
+				class="min-w-0 flex-1 text-left"
+				aria-label="Editar tarea"
+			>
+				<h4 class="mb-1 truncate text-sm font-medium text-slate-800">{task.title}</h4>
+				{#if task.description}<p class="line-clamp-2 text-xs text-slate-500">
+						{task.description}
+					</p>{/if}
+			</button>
+		{/if}
 		<button
 			type="button"
 			{disabled}
@@ -41,42 +121,77 @@
 		</button>
 	</div>
 
-	{#if task.description}
-		<p class="text-xs text-slate-500 mb-3 line-clamp-2">{task.description}</p>
-	{/if}
+	<div class="mt-3 flex flex-wrap items-center gap-2">
+		{#if editingPriority}
+			<select
+				aria-label="Cambiar prioridad"
+				value={task.priority}
+				on:change={handlePriorityChange}
+				on:keydown={(event) => handleKeydown(event, () => (editingPriority = false))}
+				class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+			>
+				<option value="baja">Baja</option>
+				<option value="media">Media</option>
+				<option value="alta">Alta</option>
+				<option value="critica">Crítica</option>
+			</select>
+		{:else}
+			<button
+				type="button"
+				on:click|stopPropagation={() => (editingPriority = true)}
+				class="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase transition hover:ring-2 hover:ring-emerald-300 {priorityStyles[
+					task.priority
+				]}"
+				aria-label={`Cambiar prioridad: ${task.priority}`}
+			>
+				{task.priority}
+			</button>
+		{/if}
 
-	<div class="flex items-center justify-between mt-2">
-		<span
-			class="text-[10px] font-bold px-2 py-0.5 rounded uppercase {priorityStyles[task.priority]}"
-		>
-			{task.priority}
-		</span>
-		<select
-			aria-label="Prioridad de la tarea"
-			value={task.priority}
-			on:change={handlePriorityChange}
-			class="text-xs border-0 bg-transparent text-slate-500 focus:ring-0"
-		>
-			<option value="baja">Baja</option>
-			<option value="media">Media</option>
-			<option value="alta">Alta</option>
-			<option value="critica">Crítica</option>
-		</select>
-
-		{#if task.due_date}
-			<span class="text-xs text-slate-400 flex items-center gap-1">
-				📅 {new Date(task.due_date).toLocaleDateString()}
-			</span>
+		{#if editingDueDate}
+			<input
+				type="date"
+				aria-label="Cambiar fecha límite"
+				value={task.due_date?.slice(0, 10) || ''}
+				on:change={handleDueDateChange}
+				on:keydown={(event) => handleKeydown(event, () => (editingDueDate = false))}
+				class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+			/>
+		{:else}
+			<button
+				type="button"
+				on:click|stopPropagation={() => (editingDueDate = true)}
+				class="rounded-full px-2 py-0.5 text-xs text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+				aria-label="Cambiar fecha límite"
+			>
+				{task.due_date ? `📅 ${new Date(task.due_date).toLocaleDateString()}` : '📅 Sin fecha'}
+			</button>
 		{/if}
 	</div>
-	<label class="block mt-2 text-[11px] text-slate-400">
-		Fecha límite
-		<input
-			type="date"
-			aria-label="Fecha límite de la tarea"
-			value={task.due_date?.slice(0, 10) || ''}
-			on:change={handleDueDateChange}
-			class="block w-full mt-1 text-xs text-slate-500 border border-slate-200 rounded px-2 py-1"
-		/>
-	</label>
+	{#if addingSubtask}
+		<form on:submit|preventDefault={createSubtask} class="mt-3 flex gap-2">
+			<input
+				bind:value={subtaskTitle}
+				maxlength="255"
+				placeholder="Nombre de la subtarea"
+				aria-label="Nombre de la subtarea"
+				class="min-w-0 flex-1 rounded-md border border-slate-200 px-2 py-1 text-xs outline-none focus:border-emerald-500"
+			/>
+			<button
+				type="submit"
+				disabled={subtaskTitle.trim().length < 2}
+				class="rounded-md bg-emerald-600 px-2 py-1 text-xs font-semibold text-white disabled:opacity-50"
+				>+</button
+			>
+			<button type="button" on:click={() => (addingSubtask = false)} class="text-xs text-slate-400"
+				>Cancelar</button
+			>
+		</form>
+	{:else}
+		<button
+			type="button"
+			on:click|stopPropagation={() => (addingSubtask = true)}
+			class="mt-3 text-xs font-semibold text-slate-400 hover:text-emerald-600">+ Subtarea</button
+		>
+	{/if}
 </div>

@@ -53,9 +53,19 @@
 
 		saving = true;
 		formError = '';
+		const { data: userData } = await supabase.auth.getUser();
+		if (!userData.user) {
+			formError = 'Tu sesión expiró. Inicia sesión de nuevo.';
+			saving = false;
+			return;
+		}
 		const { data: project, error } = await supabase
 			.from('projects')
-			.insert({ name, description: projectDescription.trim() || null })
+			.insert({
+				name,
+				description: projectDescription.trim() || null,
+				owner_id: userData.user.id
+			})
 			.select()
 			.single();
 
@@ -90,26 +100,6 @@
 
 		deletingProjectId = project.id;
 		actionError = '';
-		const { error: tasksError } = await supabase
-			.from('tasks')
-			.delete()
-			.eq('project_id', project.id);
-		if (tasksError) {
-			actionError = `No se pudieron eliminar las tareas: ${tasksError.message}`;
-			deletingProjectId = null;
-			return;
-		}
-
-		const { error: columnsError } = await supabase
-			.from('columns')
-			.delete()
-			.eq('project_id', project.id);
-		if (columnsError) {
-			actionError = `No se pudieron eliminar las columnas: ${columnsError.message}`;
-			deletingProjectId = null;
-			return;
-		}
-
 		const { error: projectError } = await supabase.from('projects').delete().eq('id', project.id);
 		if (projectError) {
 			actionError = `No se pudo eliminar el proyecto: ${projectError.message}`;

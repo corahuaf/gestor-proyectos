@@ -1,5 +1,6 @@
 export interface Project {
 	id: string;
+	owner_id: string | null;
 	name: string;
 	description: string | null;
 	archived_at: string | null;
@@ -18,6 +19,7 @@ export interface Task {
 	due_date: string | null;
 	reminder_sent: boolean;
 	position_index: number;
+	assigned_to?: string | null;
 }
 
 export interface Column {
