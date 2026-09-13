@@ -10,6 +10,7 @@
 
 	let session: Session | null = null;
 	let initialized = false;
+	let mobileMenuOpen = false;
 	$: currentPath = $page.url.pathname as string;
 	$: pageTitle =
 		currentPath === '/'
@@ -56,19 +57,37 @@
 		</div>
 	</div>
 {:else if session}
-	<div class="flex h-screen w-full bg-slate-50 overflow-hidden">
-		<Sidebar />
-		<main class="flex-1 flex flex-col overflow-hidden">
+	<div class="flex h-screen w-full min-w-0 overflow-hidden bg-slate-50">
+		{#if mobileMenuOpen}
+			<button
+				type="button"
+				on:click={() => (mobileMenuOpen = false)}
+				class="fixed inset-0 z-40 bg-slate-950/60 md:hidden"
+				aria-label="Cerrar menú"
+			></button>
+		{/if}
+		<Sidebar mobileOpen={mobileMenuOpen} on:close={() => (mobileMenuOpen = false)} />
+		<main class="flex min-w-0 flex-1 flex-col overflow-hidden">
 			<header
-				class="flex h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 sm:px-8"
+				class="flex h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-8"
 			>
-				<div>
-					<p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">
-						GestorPro
-					</p>
-					<h2 class="text-xl font-bold tracking-tight text-slate-900">{pageTitle}</h2>
+				<div class="flex min-w-0 items-center gap-3">
+					<button
+						type="button"
+						on:click={() => (mobileMenuOpen = true)}
+						class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 md:hidden"
+						aria-label="Abrir menú"
+					>
+						<span aria-hidden="true" class="text-xl">☰</span>
+					</button>
+					<div>
+						<p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">
+							GestorPro
+						</p>
+						<h2 class="text-xl font-bold tracking-tight text-slate-900">{pageTitle}</h2>
+					</div>
 				</div>
-				<div class="flex items-center gap-3 sm:gap-5">
+				<div class="flex shrink-0 items-center gap-2 sm:gap-5">
 					<span class="hidden text-sm text-slate-500 sm:inline">{session.user.email}</span>
 					<button
 						on:click={() => supabase.auth.signOut()}

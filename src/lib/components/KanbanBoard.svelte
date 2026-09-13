@@ -113,7 +113,7 @@
 	}
 </script>
 
-<div class="flex gap-4 overflow-x-auto h-full p-6 items-start flex-1 bg-slate-50">
+<div class="flex h-full min-w-0 flex-1 items-start gap-4 overflow-x-auto bg-slate-50 p-4 sm:p-6">
 	{#each columns as column (column.id)}
 		<div
 			class="bg-slate-200/50 border border-slate-200 min-w-[320px] w-[320px] rounded-xl p-3 flex flex-col max-h-full"
