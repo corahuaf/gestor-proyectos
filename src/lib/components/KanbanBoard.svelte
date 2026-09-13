@@ -11,6 +11,11 @@
 	let addingTaskFor: string | null = null;
 	let deletingTaskId: string | null = null;
 	let actionError = '';
+	let newColumnName = '';
+	let addingColumn = false;
+	let editingColumnId: string | null = null;
+	let editingColumnName = '';
+	let updatingColumnId: string | null = null;
 
 	// Actualiza el array temporalmente mientras se arrastra
 	function handleDndConsider(e: CustomEvent<{ items: Column['tasks'] }>, columnId: string) {
@@ -111,15 +116,180 @@
 	function handleTaskUpdate(event: CustomEvent<{ taskId: string; changes: Partial<Task> }>) {
 		void updateTask(event.detail.taskId, event.detail.changes);
 	}
+
+	async function addColumn() {
+		const name = newColumnName.trim();
+		if (name.length < 2) {
+			actionError = 'El nombre del estado debe tener al menos 2 caracteres.';
+			return;
+		}
+		if (name.length > 100) {
+			actionError = 'El nombre del estado no puede superar los 100 caracteres.';
+			return;
+		}
+		if (!columns[0]) {
+			actionError = 'No se puede determinar el proyecto de esta columna.';
+			return;
+		}
+
+		addingColumn = true;
+		actionError = '';
+		const { data: column, error } = await supabase
+			.from('columns')
+			.insert({
+				project_id: columns[0].project_id,
+				name,
+				position_index: columns.length
+			})
+			.select()
+			.single();
+
+		if (error || !column) {
+			actionError = error?.message || 'No se pudo crear el estado.';
+		} else {
+			columns = [...columns, { ...column, tasks: [] }];
+			newColumnName = '';
+		}
+		addingColumn = false;
+	}
+
+	function startEditingColumn(column: Column) {
+		editingColumnId = column.id;
+		editingColumnName = column.name;
+		actionError = '';
+	}
+
+	function cancelEditingColumn() {
+		editingColumnId = null;
+		editingColumnName = '';
+	}
+
+	async function renameColumn(column: Column) {
+		const name = editingColumnName.trim();
+		if (name.length < 2 || name.length > 100) {
+			actionError = 'El nombre del estado debe tener entre 2 y 100 caracteres.';
+			return;
+		}
+
+		updatingColumnId = column.id;
+		actionError = '';
+		const { error } = await supabase.from('columns').update({ name }).eq('id', column.id);
+		if (error) {
+			actionError = `No se pudo renombrar el estado: ${error.message}`;
+		} else {
+			columns = columns.map((item) => (item.id === column.id ? { ...item, name } : item));
+			cancelEditingColumn();
+		}
+		updatingColumnId = null;
+	}
+
+	async function deleteColumn(column: Column) {
+		if ((column.tasks || []).length > 0) {
+			actionError = 'No puedes eliminar un estado con tareas. Mueve o elimina sus tareas primero.';
+			return;
+		}
+		if (!window.confirm(`¿Eliminar el estado "${column.name}"?`)) return;
+
+		updatingColumnId = column.id;
+		actionError = '';
+		const { error } = await supabase.from('columns').delete().eq('id', column.id);
+		if (error) {
+			actionError = `No se pudo eliminar el estado: ${error.message}`;
+		} else {
+			columns = columns
+				.filter((item) => item.id !== column.id)
+				.map((item, position_index) => ({ ...item, position_index }));
+			await Promise.all(
+				columns.map((item) =>
+					supabase.from('columns').update({ position_index: item.position_index }).eq('id', item.id)
+				)
+			);
+		}
+		updatingColumnId = null;
+	}
+
+	function handleColumnRenameKeydown(event: KeyboardEvent, column: Column) {
+		if (event.key === 'Enter') void renameColumn(column);
+		if (event.key === 'Escape') cancelEditingColumn();
+	}
 </script>
 
 <div class="flex h-full min-w-0 flex-1 items-start gap-4 overflow-x-auto bg-slate-50 p-4 sm:p-6">
+	<div class="flex w-72 shrink-0 flex-col gap-3">
+		<form
+			on:submit|preventDefault={addColumn}
+			class="rounded-xl border border-dashed border-emerald-300 bg-emerald-50/70 p-3"
+		>
+			<label
+				for="new-column"
+				class="mb-2 block text-xs font-semibold uppercase tracking-wider text-emerald-800"
+				>Nuevo estado</label
+			>
+			<div class="flex gap-2">
+				<input
+					id="new-column"
+					bind:value={newColumnName}
+					maxlength="100"
+					placeholder="Ej. En revisión"
+					class="min-w-0 flex-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+				/>
+				<button
+					type="submit"
+					disabled={addingColumn}
+					class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+					>+</button
+				>
+			</div>
+		</form>
+	</div>
 	{#each columns as column (column.id)}
 		<div
-			class="bg-slate-200/50 border border-slate-200 min-w-[320px] w-[320px] rounded-xl p-3 flex flex-col max-h-full"
+			class="flex max-h-full min-h-0 w-80 shrink-0 flex-col rounded-xl border border-slate-200 bg-slate-200/50 p-3"
 		>
-			<div class="flex justify-between items-center mb-3 px-1">
-				<h3 class="font-bold text-slate-700">{column.name}</h3>
+			<div class="mb-3 flex items-start justify-between gap-2 px-1">
+				{#if editingColumnId === column.id}
+					<input
+						value={editingColumnName}
+						on:input={(event) =>
+							(editingColumnName = (event.currentTarget as HTMLInputElement).value)}
+						on:keydown={(event) => handleColumnRenameKeydown(event, column)}
+						class="min-w-0 flex-1 rounded-lg border border-emerald-400 bg-white px-2 py-1 text-sm font-bold text-slate-700 outline-none"
+						aria-label="Nombre del estado"
+					/>
+				{:else}
+					<h3 class="min-w-0 flex-1 truncate font-bold text-slate-700">{column.name}</h3>
+				{/if}
+				<div class="flex shrink-0 items-center gap-1">
+					{#if editingColumnId === column.id}
+						<button
+							type="button"
+							on:click={() => renameColumn(column)}
+							disabled={updatingColumnId === column.id}
+							class="rounded px-2 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+							aria-label="Guardar nombre">Guardar</button
+						>
+						<button
+							type="button"
+							on:click={cancelEditingColumn}
+							class="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200"
+							aria-label="Cancelar edición">Cancelar</button
+						>
+					{:else}
+						<button
+							type="button"
+							on:click={() => startEditingColumn(column)}
+							class="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200"
+							aria-label={`Editar ${column.name}`}>Editar</button
+						>
+						<button
+							type="button"
+							on:click={() => deleteColumn(column)}
+							disabled={updatingColumnId === column.id}
+							class="rounded px-2 py-1 text-xs text-slate-400 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+							aria-label={`Eliminar ${column.name}`}>×</button
+						>
+					{/if}
+				</div>
 				<span class="bg-slate-300 text-slate-600 text-xs font-bold px-2 py-1 rounded-full">
 					{column.tasks?.length || 0}
 				</span>
