@@ -14,9 +14,6 @@ export const GET: RequestHandler = async ({ request, url }) => {
 	if (!env.CRON_SECRET || (queryToken !== env.CRON_SECRET && headerToken !== env.CRON_SECRET)) {
 		return json({ error: 'No autorizado' }, { status: 401 });
 	}
-	if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-		return json({ error: 'SUPABASE_SERVICE_ROLE_KEY no está configurada' }, { status: 500 });
-	}
 	try {
 		const supabaseAdmin = getSupabaseAdmin();
 		// 2. Calcular ventana de tiempo (Próximas 24 horas)
