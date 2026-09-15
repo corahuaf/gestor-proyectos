@@ -19,8 +19,16 @@
 	let editingColumnId: string | null = null;
 	let editingColumnName = '';
 	let updatingColumnId: string | null = null;
+	function allValidTasks(column: Column) {
+		const uniqueTasks = new Map<string, Task>();
+		for (const task of column.tasks || []) {
+			if (task?.id && task.title && !uniqueTasks.has(task.id)) uniqueTasks.set(task.id, task);
+		}
+		return [...uniqueTasks.values()];
+	}
+
 	function validTasks(column: Column) {
-		return (column.tasks || []).filter((task) => task?.id && task.title);
+		return allValidTasks(column);
 	}
 
 	// Actualiza el array temporalmente mientras se arrastra
@@ -43,7 +51,7 @@
 	async function persistBoard() {
 		actionError = '';
 		const updates = columns.flatMap((column) =>
-			(column.tasks || []).map((task, positionIndex) =>
+			validTasks(column).map((task, positionIndex) =>
 				supabase
 					.from('tasks')
 					.update({ column_id: column.id, position_index: positionIndex })
@@ -73,7 +81,7 @@
 		addingTaskFor = column.id;
 		actionError = '';
 		taskErrors = { ...taskErrors, [column.id]: '' };
-		const positionIndex = column.tasks?.length || 0;
+		const positionIndex = validTasks(column).length;
 		const { data: task, error } = await supabase
 			.from('tasks')
 			.insert({
@@ -141,6 +149,10 @@
 
 	function handleTaskUpdate(event: CustomEvent<{ taskId: string; changes: Partial<Task> }>) {
 		void updateTask(event.detail.taskId, event.detail.changes);
+	}
+
+	function handleSubtaskDelete(event: CustomEvent<{ taskId: string }>) {
+		void deleteTask(event.detail.taskId);
 	}
 
 	function handleSubtaskAdd(event: CustomEvent<{ parentTaskId: string; title: string }>) {
@@ -393,9 +405,11 @@
 						<div animate:flip={{ duration: flipDurationMs }}>
 							<TaskCard
 								{task}
+								isSubtask={Boolean(task.parent_task_id)}
 								on:delete={() => deleteTask(task.id)}
 								on:update={handleTaskUpdate}
 								on:add-subtask={handleSubtaskAdd}
+								on:delete-subtask={handleSubtaskDelete}
 								disabled={deletingTaskId === task.id}
 							/>
 						</div>
